@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mesa de Negócios, Diagnóstico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0a0a;
+    --muted:#6b6b6b;
+    --line:#e2e2e2;
+    --accent:#0a0a0a;
+    --side: 8vw;
+    /* coluna de 1280px centralizada no desktop, texto encostado à esquerda dela */
+    --gutter: max(var(--side), calc((100vw - 1280px) / 2 + 40px));
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    font-family:"Instrument Sans", system-ui, sans-serif;
+    background:#fff;
+    color:var(--ink);
+    overflow:hidden;
+    font-weight:400;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* Barra de progresso */
+  .progress{
+    position:fixed; top:0; left:0; height:4px; width:0%;
+    background:var(--ink); z-index:50; transition:width .45s cubic-bezier(.22,1,.36,1);
+  }
+
+  /* Navegação inferior */
+  .nav{
+    position:fixed; bottom:22px; right:var(--gutter); z-index:40;
+    display:flex; gap:8px; align-items:center;
+  }
+  .nav button{
+    width:44px; height:40px; border:none; background:var(--ink); color:#fff;
+    border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:opacity .2s, transform .1s;
+  }
+  .nav button:disabled{ opacity:.25; cursor:not-allowed; }
+  .nav button:not(:disabled):active{ transform:scale(.94); }
+  .nav button svg{ width:18px; height:18px; }
+  .counter{ position:fixed; bottom:28px; left:var(--gutter); z-index:40; font-size:13px; color:var(--muted); font-weight:500;}
+
+  /* Palco de slides */
+  .stage{ position:relative; width:100%; height:100%; }
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:0 var(--gutter);
+    opacity:0; visibility:hidden;
+    transform:translateY(40px);
+    transition:opacity .5s ease, transform .55s cubic-bezier(.22,1,.36,1);
+    pointer-events:none;
+  }
+  .slide.active{ opacity:1; visibility:visible; transform:translateY(0); pointer-events:auto; }
+  .slide.leaving-up{ opacity:0; transform:translateY(-40px); }
+
+  .qnum{ display:flex; align-items:center; gap:7px; color:var(--ink); font-weight:600; font-size:15px; margin-bottom:14px; }
+  .qnum svg{ width:14px; height:14px; }
+  .q{ font-size:clamp(24px, 4.2vw, 40px); font-weight:700; line-height:1.15; letter-spacing:-.5px; }
+  .desc{ margin-top:12px; font-size:clamp(15px,1.9vw,18px); color:var(--muted); font-weight:400; line-height:1.45; }
+
+  /* Inputs */
+  .field{ margin-top:34px; }
+  input.txt, textarea.txt{
+    width:100%; border:1px solid rgba(10,10,10,.1); border-radius:14px;
+    background:transparent; font-family:inherit; font-weight:500;
+    font-size:clamp(18px,2.4vw,24px); color:var(--ink);
+    padding:17px 20px; outline:none; transition:border-color .2s, box-shadow .2s;
+    resize:none; overflow:hidden;
+  }
+  input.txt::placeholder, textarea.txt::placeholder{ color:#bcbcbc; font-weight:400; }
+  input.txt:focus, textarea.txt:focus{ border-color:rgba(10,10,10,.1); }
+
+  /* Botão OK / avançar dentro do slide */
+  .actions{ margin-top:30px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .ok{
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--ink); color:#fff; border:none; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:17px;
+    padding:14px 26px; border-radius:10px; transition:transform .1s, opacity .2s;
+  }
+  .ok:active{ transform:scale(.97); }
+  .ok .k{ font-size:12px; font-weight:500; opacity:.75; display:flex; align-items:center; gap:4px;}
+  .hint{ font-size:13px; color:var(--muted); font-weight:500; }
+  .hint b{ background:#f0f0f0; border-radius:4px; padding:2px 6px; font-weight:600; color:#333; }
+
+  /* Instagram */
+  .ig-wrap{ display:flex; align-items:center; border:1px solid rgba(10,10,10,.1); border-radius:14px; padding-left:20px; transition:border-color .2s;}
+  .ig-wrap:focus-within{ border-color:rgba(10,10,10,.1); }
+  .ig-wrap span{ font-size:clamp(18px,2.4vw,24px); font-weight:600; color:var(--ink); padding-right:2px;}
+  .ig-wrap input{ border:none !important; border-radius:0 !important; padding-left:4px; }
+
+  /* Telefone com DDI */
+  .phone-row{ display:flex; align-items:stretch; gap:12px; }
+  .ddi{
+    position:relative; flex:0 0 auto;
+  }
+  .ddi-btn{
+    height:100%;
+    display:flex; align-items:center; gap:10px; cursor:pointer;
+    border:1px solid rgba(10,10,10,.1); border-radius:14px; background:transparent;
+    padding:14px 16px; font-family:inherit; font-weight:600;
+    font-size:clamp(17px,2.2vw,22px); color:var(--ink); transition:border-color .2s;
+    white-space:nowrap;
+  }
+  .ddi-btn:focus{ outline:none; border-color:rgba(10,10,10,.1); }
+  .ddi-btn .flag{ width:34px; height:24px; border-radius:3px; object-fit:cover; box-shadow:0 0 0 1px rgba(0,0,0,.07);}
+  .ddi-btn .chev{ width:14px; height:14px; opacity:.55; }
+  .phone-row input.txt{ flex:1; min-width:0; }
+
+  .ddi-panel{
+    position:absolute; bottom:calc(100% + 10px); left:0; z-index:60;
+    width:340px; max-width:78vw; background:#fff; border:1px solid var(--line);
+    border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.16);
+    display:none; flex-direction:column; overflow:hidden;
+  }
+  .ddi-panel.open{ display:flex; }
+  .ddi-search{ padding:12px; border-bottom:1px solid var(--line); }
+  .ddi-search input{
+    width:100%; border:1px solid var(--line); border-radius:9px; padding:11px 13px;
+    font-family:inherit; font-size:15px; outline:none; font-weight:500;
+  }
+  .ddi-search input:focus{ border-color:var(--ink); }
+  .ddi-list{ max-height:300px; overflow-y:auto; }
+  .ddi-item{
+    display:flex; align-items:center; gap:12px; padding:11px 14px; cursor:pointer;
+    font-size:15px; font-weight:500; transition:background .12s;
+  }
+  .ddi-item:hover, .ddi-item.hl{ background:#f5f5f5; }
+  .ddi-item .flag{ width:30px; height:21px; border-radius:3px; object-fit:cover; box-shadow:0 0 0 1px rgba(0,0,0,.07); flex:0 0 auto;}
+  .ddi-item .cn{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ddi-item .cd{ color:var(--muted); font-weight:600; }
+
+  /* Erro */
+  .err{ color:#c0392b; font-size:14px; font-weight:600; margin-top:14px; min-height:18px; opacity:0; transition:opacity .2s;}
+  .err.show{ opacity:1; }
+
+  /* Capa e final */
+  .center{ text-align:left; }
+  .big{ font-size:clamp(30px,6vw,58px); font-weight:700; line-height:1.08; letter-spacing:-1px; }
+  .lead{ font-size:clamp(16px,2.2vw,20px); color:var(--muted); margin-top:18px; max-width:560px; line-height:1.5;}
+  .tag{ font-weight:700; font-size:14px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:18px;}
+
+  /* Opções sim/não */
+  .opts{ margin-top:32px; display:flex; flex-direction:column; gap:12px; max-width:520px;}
+  .opt{
+    display:flex; align-items:center; gap:14px; border:2px solid var(--line);
+    border-radius:12px; padding:16px 18px; cursor:pointer; font-weight:600; font-size:18px;
+    transition:border-color .18s, background .18s;
+  }
+  .opt:hover{ border-color:#bcbcbc; }
+  .opt.sel{ border-color:var(--ink); background:var(--ink); color:#fff; }
+  .opt .key{ width:26px; height:26px; border:1.5px solid currentColor; border-radius:6px; display:flex;align-items:center;justify-content:center;font-size:13px; opacity:.7;}
+
+  .submit{
+    margin-top:34px; display:inline-flex; align-items:center; gap:12px;
+    background:var(--ink); color:#fff; border:none; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:19px;
+    padding:18px 34px; border-radius:12px; transition:transform .1s, opacity .2s;
+  }
+  .submit:active{ transform:scale(.98); }
+  .submit svg{ width:20px; height:20px; }
+
+  /* Tela de agradecimento */
+  #done{ align-items:flex-start; }
+  .check{ width:74px; height:74px; border-radius:50%; background:var(--ink); display:flex;align-items:center;justify-content:center; margin-bottom:26px;}
+  .check svg{ width:38px; height:38px; color:#fff; }
+
+  @media (max-width:640px){
+    :root{ --side:1.45em; }
+    .nav{ right:1.45em; }
+    .counter{ left:1.45em; }
+    .q{ font-size:26px; }
+    .ddi-panel{ width:300px; }
+    .phone-row{ flex-wrap:wrap; gap:10px; }
+    .ddi-btn{ font-size:20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="prog"></div>
+<div class="stage" id="stage"></div>
+
+<div class="counter" id="counter"></div>
+<div class="nav">
+  <button id="prev" title="Anterior" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+  </button>
+  <button id="next" title="Próximo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+</div>
+
+<script src="countries.js"></script>
+<script>
+const answers = {};
+let ddiSel = COUNTRIES[0]; // Brasil
+
+/* ---------- Definição das perguntas ---------- */
+const steps = [
+  { type:"intro" },
+  { type:"text", key:"nome", num:1, q:"Qual é o seu nome?", ph:"Digite seu nome completo", required:true },
+  { type:"email", key:"email", num:2, q:"Qual o seu melhor e-mail?", ph:"nome@email.com", required:true,
+    desc:"É para lá que enviamos o seu diagnóstico." },
+  { type:"phone", key:"telefone", num:3, q:"Qual o seu telefone?", required:true,
+    desc:"Escolha o DDI do seu país e digite o número." },
+  { type:"instagram", key:"instagram", num:4, q:"Qual o seu Instagram?", ph:"seu.usuario", required:true },
+  { type:"text", key:"area", num:5, q:"Qual é a sua área dentro do mercado da beleza?", ph:"Ex.: estética facial, cílios, cabelo, clínica...", required:true },
+  { type:"textarea", key:"dificuldade", num:6, q:"Qual a sua maior dificuldade hoje dentro do mercado da beleza / clínica?", ph:"Escreva com sinceridade...", required:true },
+  { type:"textarea", key:"espera_aula", num:7, q:"O que você espera dessa aula de hoje na Mesa de Negócios?", ph:"O que faria essa aula ser especial pra você...", required:true },
+  { type:"textarea", key:"valeu", num:8, q:"O que você precisa aprender hoje pra sair e dizer: “valeu a pena”?", ph:"Seja específica...", required:true },
+  { type:"textarea", key:"problema", num:9, q:"Qual problema do mercado da beleza você mais espera uma solução?", ph:"O problema que mais te incomoda hoje...", required:true },
+  { type:"currency", key:"faturamento", num:10, q:"Qual é o seu faturamento hoje?", required:true },
+  { type:"final", key:"comparecer", num:11, q:"Você vai conseguir comparecer na próxima aula?",
+    desc:"Confirme abaixo, é o nosso compromisso." },
+  { type:"done" }
+];
+
+let idx = 0;
+const stage = document.getElementById('stage');
+const prog = document.getElementById('prog');
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+
+/* ---------- helpers ---------- */
+const flagUrl = c => `https://flagcdn.com/${c}.svg`;
+function esc(s){ return (s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+const arrowSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+const enterHint = `<span class="hint">pressione <b>Enter ↵</b></span>`;
+
+/* ---------- render de cada slide ---------- */
+function buildSlide(step){
+  const el = document.createElement('div');
+  el.className = 'slide';
+
+  if(step.type === 'intro'){
+    el.innerHTML = `
+      <div class="center">
+        <div class="tag">Mesa de Negócios</div>
+        <div class="big">Vamos montar o seu<br>diagnóstico.</div>
+        <p class="lead">Poucas perguntas estratégicas para entender exatamente onde você está e onde quer chegar no mercado da beleza. Leva menos de 2 minutos.</p>
+        <div class="actions">
+          <button class="ok" data-go>Começar ${arrowSvg}</button>
+          ${enterHint}
+        </div>
+      </div>`;
+    return el;
+  }
+
+  if(step.type === 'done'){
+    el.id = 'done';
+    el.innerHTML = `
+      <div class="center">
+        <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="big">Diagnóstico enviado!</div>
+        <p class="lead" id="doneMsg">Recebemos suas respostas. Nos vemos na Mesa de Negócios, sua vaga e seu compromisso já estão marcados.</p>
+      </div>`;
+    return el;
+  }
+
+  // cabeçalho comum
+  const head = `
+    <div class="qnum">${step.num}${arrowSvg}</div>
+    <div class="q">${step.q}</div>
+    ${step.desc ? `<div class="desc">${step.desc}</div>` : ''}`;
+
+  let body = '';
+
+  if(step.type === 'text' || step.type === 'email'){
+    const t = step.type === 'email' ? 'email' : 'text';
+    body = `<div class="field"><input class="txt" type="${t}" inputmode="${step.type==='email'?'email':'text'}" placeholder="${esc(step.ph)}" data-input value="${esc(answers[step.key]||'')}"></div>`;
+  }
+  else if(step.type === 'textarea'){
+    body = `<div class="field"><textarea class="txt" rows="1" placeholder="${esc(step.ph)}" data-input>${esc(answers[step.key]||'')}</textarea></div>`;
+  }
+  else if(step.type === 'instagram'){
+    body = `<div class="field"><div class="ig-wrap"><span>@</span><input class="txt" type="text" placeholder="${esc(step.ph)}" data-input value="${esc(answers[step.key]||'')}"></div></div>`;
+  }
+  else if(step.type === 'currency'){
+    body = `<div class="field"><input class="txt" type="text" inputmode="numeric" placeholder="R$ 0,00" data-input value="${esc(answers[step.key]||'')}"></div>`;
+  }
+  else if(step.type === 'phone'){
+    body = `
+      <div class="field">
+        <div class="phone-row">
+          <div class="ddi">
+            <button type="button" class="ddi-btn" data-ddi-btn>
+              <img class="flag" src="${flagUrl(ddiSel.c)}" alt="">
+              <span data-ddi-code>+${ddiSel.d}</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="ddi-panel" data-ddi-panel>
+              <div class="ddi-search"><input type="text" placeholder="Buscar país ou DDI..." data-ddi-search></div>
+              <div class="ddi-list" data-ddi-list></div>
+            </div>
+          </div>
+          <input class="txt" type="tel" inputmode="tel" placeholder="(00) 00000-0000" data-input value="${esc(answers[step.key+'_num']||'')}">
+        </div>
+      </div>`;
+  }
+  else if(step.type === 'final'){
+    body = `
+      <div class="opts">
+        <div class="opt" data-opt="Sim, estarei presente!"><span class="key">S</span> Sim, estarei presente!</div>
+        <div class="opt" data-opt="Vou me organizar para comparecer"><span class="key">O</span> Vou me organizar para comparecer</div>
+      </div>
+      <p class="desc" style="margin-top:22px">Anote a <b style="color:var(--ink)">data e o horário</b> na sua agenda, esse é o nosso compromisso.</p>
+      <div class="actions">
+        <button class="submit" data-submit>Enviar diagnóstico ${arrowSvg}</button>
+      </div>`;
+  }
+
+  el.innerHTML = head + body + `<div class="err" data-err></div>`;
+  return el;
+}
+
+/* ---------- montar todos os slides ---------- */
+const slideEls = steps.map(buildSlide);
+slideEls.forEach(s => stage.appendChild(s));
+
+/* ---------- navegação ---------- */
+function autoGrow(t){ if(t && t.tagName==='TEXTAREA'){ t.style.height='auto'; t.style.height=(t.scrollHeight)+'px'; } }
+
+function show(n){
+  const cur = slideEls[idx];
+  if(n > idx) cur.classList.add('leaving-up');
+  cur.classList.remove('active');
+  setTimeout(()=>cur.classList.remove('leaving-up'), 550);
+
+  idx = n;
+  const el = slideEls[idx];
+  el.classList.add('active');
+
+  const step = steps[idx];
+  // progresso
+  const pct = (idx) / (steps.length - 1) * 100;
+  prog.style.width = pct + '%';
+
+  // contador
+  if(step.num){ counter.textContent = `${step.num} / ${steps.filter(s=>s.num).length}`; }
+  else counter.textContent = '';
+
+  prevBtn.disabled = idx === 0;
+  nextBtn.disabled = idx >= steps.length - 1;
+
+  // foco
+  setTimeout(()=>{
+    const inp = el.querySelector('[data-input]');
+    if(inp){ inp.focus(); autoGrow(inp); }
+  }, 120);
+
+  wire(el, step);
+}
+
+function goNext(){
+  const step = steps[idx];
+  if(!validate(step)) return;
+  save(step);
+  if(idx < steps.length - 1) show(idx+1);
+}
+function goPrev(){ if(idx>0) show(idx-1); }
+
+/* ---------- validação ---------- */
+function setErr(el, msg){
+  const e = el.querySelector('[data-err]');
+  if(!e) return;
+  e.textContent = msg || '';
+  e.classList.toggle('show', !!msg);
+}
+function validate(step){
+  const el = slideEls[idx];
+  if(step.type==='intro' || step.type==='done') return true;
+  const inp = el.querySelector('[data-input]');
+
+  if(step.type==='final'){
+    if(!answers.comparecer){ setErr(el, 'Selecione uma opção para continuar.'); return false; }
+    return true;
+  }
+  if(step.required && (!inp || !inp.value.trim())){
+    setErr(el, 'Este campo é obrigatório.');
+    inp && inp.focus();
+    return false;
+  }
+  if(step.type==='email'){
+    const v = inp.value.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){ setErr(el,'Digite um e-mail válido.'); return false; }
+  }
+  setErr(el, '');
+  return true;
+}
+function save(step){
+  const el = slideEls[idx];
+  const inp = el.querySelector('[data-input]');
+  if(step.type==='phone'){
+    answers[step.key+'_num'] = inp.value.trim();
+    answers[step.key] = `+${ddiSel.d} ${inp.value.trim()} (${ddiSel.n})`;
+  } else if(inp){
+    answers[step.key] = inp.value.trim();
+  }
+}
+
+/* ---------- ligações por slide ---------- */
+function wire(el, step){
+  // botão começar / ok
+  el.querySelectorAll('[data-go]').forEach(b=> b.onclick = goNext);
+
+  const inp = el.querySelector('[data-input]');
+  if(inp){
+    inp.oninput = ()=>{
+      autoGrow(inp);
+      setErr(el,'');
+      if(step.type==='currency') formatCurrency(inp);
+      if(step.type==='instagram') inp.value = inp.value.replace(/[^A-Za-z0-9._]/g,'').replace(/^@+/,'');
+    };
+    inp.onkeydown = (e)=>{
+      if(e.key==='Enter' && step.type!=='textarea'){ e.preventDefault(); goNext(); }
+      if(e.key==='Enter' && step.type==='textarea' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); goNext(); }
+    };
+  }
+
+  // telefone / DDI
+  if(step.type==='phone'){ wireDDI(el); }
+
+  // final
+  if(step.type==='final'){
+    el.querySelectorAll('[data-opt]').forEach(o=>{
+      o.onclick = ()=>{
+        el.querySelectorAll('[data-opt]').forEach(x=>x.classList.remove('sel'));
+        o.classList.add('sel');
+        answers.comparecer = o.getAttribute('data-opt');
+        setErr(el,'');
+      };
+    });
+    if(answers.comparecer){
+      el.querySelectorAll('[data-opt]').forEach(x=>{ if(x.getAttribute('data-opt')===answers.comparecer) x.classList.add('sel'); });
+    }
+    el.querySelector('[data-submit]').onclick = ()=>{
+      if(!validate(step)) return;
+      finish();
+    };
+  }
+}
+
+/* ---------- dropdown DDI ---------- */
+function wireDDI(el){
+  const btn = el.querySelector('[data-ddi-btn]');
+  const panel = el.querySelector('[data-ddi-panel]');
+  const search = el.querySelector('[data-ddi-search]');
+  const list = el.querySelector('[data-ddi-list]');
+  const codeSpan = el.querySelector('[data-ddi-code]');
+  const flagImg = el.querySelector('.ddi-btn .flag');
+  let hl = 0, filtered = COUNTRIES;
+
+  function renderList(){
+    list.innerHTML = filtered.map((c,i)=>`
+      <div class="ddi-item ${i===hl?'hl':''}" data-i="${i}">
+        <img class="flag" src="${flagUrl(c.c)}" alt="" loading="lazy">
+        <span class="cn">${c.n}</span>
+        <span class="cd">+${c.d}</span>
+      </div>`).join('');
+    list.querySelectorAll('.ddi-item').forEach(it=>{
+      it.onclick = ()=> pick(filtered[+it.dataset.i]);
+    });
+  }
+  function pick(c){
+    ddiSel = c;
+    codeSpan.textContent = '+'+c.d;
+    flagImg.src = flagUrl(c.c);
+    close();
+    el.querySelector('[data-input]').focus();
+  }
+  function open(){ panel.classList.add('open'); filtered=COUNTRIES; hl=0; renderList(); search.value=''; setTimeout(()=>search.focus(),50); }
+  function close(){ panel.classList.remove('open'); }
+
+  btn.onclick = (e)=>{ e.stopPropagation(); panel.classList.contains('open')?close():open(); };
+  search.oninput = ()=>{
+    const q = search.value.trim().toLowerCase();
+    filtered = COUNTRIES.filter(c => c.n.toLowerCase().includes(q) || ('+'+c.d).includes(q) || c.d.includes(q));
+    hl = 0; renderList();
+  };
+  search.onkeydown = (e)=>{
+    if(e.key==='ArrowDown'){ e.preventDefault(); hl=Math.min(hl+1,filtered.length-1); renderList(); scrollHl(list); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); hl=Math.max(hl-1,0); renderList(); scrollHl(list); }
+    else if(e.key==='Enter'){ e.preventDefault(); if(filtered[hl]) pick(filtered[hl]); }
+    else if(e.key==='Escape'){ close(); }
+  };
+  document.addEventListener('click', (e)=>{ if(!el.querySelector('.ddi').contains(e.target)) close(); });
+  renderList();
+}
+function scrollHl(list){ const h=list.querySelector('.hl'); if(h) h.scrollIntoView({block:'nearest'}); }
+
+/* ---------- formatação de moeda ---------- */
+function formatCurrency(inp){
+  let digits = inp.value.replace(/\D/g,'');
+  if(!digits){ inp.value=''; return; }
+  digits = digits.replace(/^0+/,'') || '0';
+  while(digits.length < 3) digits = '0'+digits;
+  const cents = digits.slice(-2);
+  let intp = digits.slice(0,-2);
+  intp = intp.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  inp.value = 'R$ ' + intp + ',' + cents;
+}
+
+/* ---------- concluir ---------- */
+function finish(){
+  console.log('RESPOSTAS DO DIAGNÓSTICO:', JSON.stringify(answers, null, 2));
+  try{ localStorage.setItem('formMesa_'+Date.now(), JSON.stringify(answers)); }catch(e){}
+  show(steps.length-1);
+  const msg = document.getElementById('doneMsg');
+  if(msg && answers.nome){
+    const primeiro = answers.nome.split(' ')[0];
+    msg.textContent = `Obrigado, ${primeiro}! Recebemos suas respostas. Nos vemos na Mesa de Negócios, sua vaga e o nosso compromisso já estão marcados.`;
+  }
+}
+
+/* ---------- teclas globais ---------- */
+nextBtn.onclick = goNext;
+prevBtn.onclick = goPrev;
+document.addEventListener('keydown',(e)=>{
+  const step = steps[idx];
+  if(step.type==='final'){
+    if(e.key.toLowerCase()==='s'){ const o=slideEls[idx].querySelector('[data-opt="Sim, estarei presente!"]'); o&&o.click(); }
+    if(e.key.toLowerCase()==='o'){ const o=slideEls[idx].querySelector('[data-opt="Vou me organizar para comparecer"]'); o&&o.click(); }
+  }
+});
+
+/* ---------- start ---------- */
+show(0);
+</script>
+</body>
+</html>
