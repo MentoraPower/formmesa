@@ -99,6 +99,35 @@
   .ig-wrap span{ font-size:clamp(18px,2.4vw,24px); font-weight:600; color:var(--ink); padding-right:2px;}
   .ig-wrap input{ border:none !important; border-radius:0 !important; padding-left:4px; }
 
+  /* Dropdown de seleção (área) */
+  .select{ position:relative; }
+  .select-btn{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid rgba(10,10,10,.1); border-radius:14px; background:transparent; cursor:pointer;
+    font-family:inherit; font-weight:500; font-size:clamp(18px,2.4vw,24px); color:var(--ink);
+    padding:17px 20px; transition:border-color .2s; text-align:left;
+  }
+  .select-btn.placeholder{ color:#bcbcbc; font-weight:400; }
+  .select-btn:focus{ outline:none; }
+  .select-btn .chev{ width:18px; height:18px; opacity:.5; flex:0 0 auto; transition:transform .25s; }
+  .select.open .select-btn .chev{ transform:rotate(180deg); }
+  .select-panel{
+    position:absolute; top:calc(100% + 10px); left:0; right:0; z-index:60;
+    background:#fff; border:1px solid rgba(10,10,10,.1); border-radius:14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.12); overflow:hidden auto; max-height:320px;
+    display:none; opacity:0; transform:translateY(-6px); transition:opacity .18s, transform .18s;
+  }
+  .select.open .select-panel{ display:block; opacity:1; transform:translateY(0); }
+  .select-item{
+    display:flex; align-items:center; gap:12px; padding:14px 20px; cursor:pointer;
+    font-size:17px; font-weight:500; color:var(--ink); transition:background .12s;
+  }
+  .select-item + .select-item{ border-top:1px solid rgba(10,10,10,.06); }
+  .select-item:hover, .select-item.hl{ background:#f6f6f6; }
+  .select-item.sel{ font-weight:700; }
+  .select-item .dot{ margin-left:auto; width:19px; height:19px; opacity:0; flex:0 0 auto; transition:opacity .15s; }
+  .select-item.sel .dot{ opacity:1; }
+
   /* Telefone com DDI */
   .phone-row{ display:flex; align-items:stretch; gap:12px; }
   .ddi{
@@ -215,7 +244,8 @@ const steps = [
   { type:"phone", key:"telefone", num:3, q:"Qual o seu telefone?", required:true,
     desc:"Escolha o DDI do seu país e digite o número." },
   { type:"instagram", key:"instagram", num:4, q:"Qual o seu Instagram?", ph:"seu.usuario", required:true },
-  { type:"text", key:"area", num:5, q:"Qual é a sua área dentro do mercado da beleza?", ph:"Ex.: estética facial, cílios, cabelo, clínica...", required:true },
+  { type:"select", key:"area", num:5, q:"Qual é a sua principal área dentro do mercado da beleza?", required:true,
+    options:["Sobrancelhas","Cílios","Unhas","Cabelo","Estética","Harmonização","Maquiagem","Depilação","Outra"] },
   { type:"textarea", key:"dificuldade", num:6, q:"Qual a sua maior dificuldade hoje dentro do mercado da beleza / clínica?", ph:"Escreva com sinceridade...", required:true },
   { type:"textarea", key:"espera_aula", num:7, q:"O que você espera dessa aula de hoje na Mesa de Negócios?", ph:"O que faria essa aula ser especial pra você...", required:true },
   { type:"textarea", key:"valeu", num:8, q:"O que você precisa aprender hoje pra sair e dizer: “valeu a pena”?", ph:"Seja específica...", required:true },
@@ -290,6 +320,27 @@ function buildSlide(step){
   }
   else if(step.type === 'currency'){
     body = `<div class="field"><input class="txt" type="text" inputmode="numeric" placeholder="R$ 0,00" data-input value="${esc(answers[step.key]||'')}"></div>`;
+  }
+  else if(step.type === 'select'){
+    const cur = answers[step.key] || '';
+    const isOther = cur && !step.options.includes(cur);
+    const shown = isOther ? 'Outra' : cur;
+    const check = `<svg class="dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`;
+    body = `
+      <div class="field">
+        <div class="select" data-select>
+          <button type="button" class="select-btn ${shown?'':'placeholder'}" data-select-btn>
+            <span data-select-label>${shown ? esc(shown) : 'Selecione sua área'}</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="select-panel" data-select-panel>
+            ${step.options.map(o=>`<div class="select-item ${o===shown?'sel':''}" data-opt="${esc(o)}"><span>${o}</span>${check}</div>`).join('')}
+          </div>
+        </div>
+        <div class="field" data-other style="display:${isOther?'block':'none'};margin-top:14px">
+          <input class="txt" type="text" placeholder="Conta pra gente qual é a sua área" data-other-input value="${esc(isOther?cur:'')}">
+        </div>
+      </div>`;
   }
   else if(step.type === 'phone'){
     body = `
@@ -433,6 +484,9 @@ function wire(el, step){
   // telefone / DDI
   if(step.type==='phone'){ wireDDI(el); }
 
+  // dropdown de área
+  if(step.type==='select'){ wireSelect(el, step); }
+
   // final
   if(step.type==='final'){
     el.querySelectorAll('[data-opt]').forEach(o=>{
@@ -451,6 +505,45 @@ function wire(el, step){
       finish();
     };
   }
+}
+
+/* ---------- dropdown de área ---------- */
+function wireSelect(el, step){
+  const wrap = el.querySelector('[data-select]');
+  const btn = el.querySelector('[data-select-btn]');
+  const label = el.querySelector('[data-select-label]');
+  const other = el.querySelector('[data-other]');
+  const otherInput = el.querySelector('[data-other-input]');
+
+  const open = ()=> wrap.classList.add('open');
+  const close = ()=> wrap.classList.remove('open');
+  btn.onclick = (e)=>{ e.stopPropagation(); wrap.classList.contains('open') ? close() : open(); };
+
+  el.querySelectorAll('[data-opt]').forEach(it=>{
+    it.onclick = ()=>{
+      const val = it.getAttribute('data-opt');
+      el.querySelectorAll('[data-opt]').forEach(x=>x.classList.remove('sel'));
+      it.classList.add('sel');
+      label.textContent = val;
+      btn.classList.remove('placeholder');
+      close(); setErr(el,'');
+      if(val === 'Outra'){
+        other.style.display = 'block';
+        answers[step.key] = '';
+        setTimeout(()=>otherInput && otherInput.focus(), 60);
+      } else {
+        other.style.display = 'none';
+        answers[step.key] = val;
+      }
+    };
+  });
+
+  if(otherInput){
+    otherInput.oninput = ()=>{ answers[step.key] = otherInput.value.trim(); setErr(el,''); };
+    otherInput.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); goNext(); } };
+  }
+
+  document.addEventListener('click', (e)=>{ if(!wrap.contains(e.target)) close(); });
 }
 
 /* ---------- dropdown DDI ---------- */
