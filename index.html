@@ -112,15 +112,16 @@
   .select-btn .chev{ width:18px; height:18px; opacity:.5; flex:0 0 auto; transition:transform .25s; }
   .select.open .select-btn .chev{ transform:rotate(180deg); }
   .select-panel{
-    position:absolute; top:calc(100% + 10px); left:0; right:0; z-index:60;
+    position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:60;
     background:#fff; border:1px solid rgba(10,10,10,.1); border-radius:14px;
-    box-shadow:0 18px 50px rgba(0,0,0,.12); overflow:hidden auto; max-height:320px;
+    box-shadow:0 18px 50px rgba(0,0,0,.12); overflow:hidden auto; max-height:300px;
     display:none; opacity:0; transform:translateY(-6px); transition:opacity .18s, transform .18s;
   }
+  .select-panel.up{ top:auto; bottom:calc(100% + 8px); transform:translateY(6px); }
   .select.open .select-panel{ display:block; opacity:1; transform:translateY(0); }
   .select-item{
-    display:flex; align-items:center; gap:12px; padding:14px 20px; cursor:pointer;
-    font-size:17px; font-weight:500; color:var(--ink); transition:background .12s;
+    display:flex; align-items:center; gap:12px; padding:11px 18px; cursor:pointer;
+    font-size:16px; font-weight:500; color:var(--ink); transition:background .12s;
   }
   .select-item + .select-item{ border-top:1px solid rgba(10,10,10,.06); }
   .select-item:hover, .select-item.hl{ background:#f6f6f6; }
@@ -443,6 +444,12 @@ function validate(step){
     if(!answers.comparecer){ setErr(el, 'Selecione uma opção para continuar.'); return false; }
     return true;
   }
+  if(step.type==='select'){
+    if(step.required && !(answers[step.key] && answers[step.key].trim())){
+      setErr(el, 'Selecione uma opção para continuar.'); return false;
+    }
+    setErr(el, ''); return true;
+  }
   if(step.required && (!inp || !inp.value.trim())){
     setErr(el, 'Este campo é obrigatório.');
     inp && inp.focus();
@@ -519,7 +526,17 @@ function wireSelect(el, step){
   const other = el.querySelector('[data-other]');
   const otherInput = el.querySelector('[data-other-input]');
 
-  const open = ()=> wrap.classList.add('open');
+  const panel = el.querySelector('[data-select-panel]');
+  const open = ()=>{
+    // calcula o espaço disponível pra o painel caber na tela
+    const r = btn.getBoundingClientRect();
+    const abaixo = window.innerHeight - r.bottom - 16;
+    const acima  = r.top - 16;
+    const paraCima = abaixo < 220 && acima > abaixo;
+    panel.classList.toggle('up', paraCima);
+    panel.style.maxHeight = Math.max(150, Math.min(300, paraCima ? acima : abaixo)) + 'px';
+    wrap.classList.add('open');
+  };
   const close = ()=> wrap.classList.remove('open');
   btn.onclick = (e)=>{ e.stopPropagation(); wrap.classList.contains('open') ? close() : open(); };
 
