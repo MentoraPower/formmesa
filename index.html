@@ -232,6 +232,10 @@
 
 <script src="countries.js"></script>
 <script>
+/* ---------- Supabase (envio das respostas) ---------- */
+const SUPABASE_URL  = 'https://alsbxdanlyqxwxlksokj.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsc2J4ZGFubHlxeHd4bGtzb2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMjA5ODYsImV4cCI6MjA5ODc5Njk4Nn0.jBP-LIlWlBx1_OXyQIKbYomWHamnL7oK0F2aD1IlSOo';
+
 const answers = {};
 let ddiSel = COUNTRIES[0]; // Brasil
 
@@ -610,12 +614,42 @@ function formatCurrency(inp){
 function finish(){
   console.log('RESPOSTAS DO DIAGNÓSTICO:', JSON.stringify(answers, null, 2));
   try{ localStorage.setItem('formMesa_'+Date.now(), JSON.stringify(answers)); }catch(e){}
+  enviarSupabase();
   show(steps.length-1);
   const msg = document.getElementById('doneMsg');
   if(msg && answers.nome){
     const primeiro = answers.nome.split(' ')[0];
     msg.textContent = `Obrigado, ${primeiro}! Recebemos suas respostas. Nos vemos na Mesa de Negócios, sua vaga e o nosso compromisso já estão marcados.`;
   }
+}
+
+/* ---------- envio pro Supabase ---------- */
+function enviarSupabase(){
+  const payload = {
+    nome:        answers.nome        || null,
+    email:       answers.email       || null,
+    telefone:    answers.telefone    || null,
+    instagram:   answers.instagram   || null,
+    area:        answers.area        || null,
+    dificuldade: answers.dificuldade || null,
+    espera_aula: answers.espera_aula || null,
+    valeu:       answers.valeu       || null,
+    problema:    answers.problema    || null,
+    faturamento: answers.faturamento || null,
+    comparecer:  answers.comparecer  || null
+  };
+  fetch(SUPABASE_URL + '/rest/v1/respostas', {
+    method: 'POST',
+    headers: {
+      'apikey':        SUPABASE_ANON,
+      'Authorization': 'Bearer ' + SUPABASE_ANON,
+      'Content-Type':  'application/json',
+      'Prefer':        'return=minimal'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(r=>{ if(!r.ok) return r.text().then(t=>console.error('Supabase erro', r.status, t)); })
+  .catch(e=>console.error('Falha ao enviar pro Supabase', e));
 }
 
 /* ---------- teclas globais ---------- */

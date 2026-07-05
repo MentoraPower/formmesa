@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Respostas · Form Mesa</title>
+<style>
+  :root{ --ink:#0a0a0a; --muted:#6b6b6b; --line:rgba(10,10,10,.1); --bg:#f4f4f2; --accent:#0a0a0a; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); }
+
+  /* ----- tela de senha ----- */
+  .gate{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .gate-card{ width:100%; max-width:380px; background:#fff; border:1px solid var(--line); border-radius:18px; padding:34px 30px; box-shadow:0 18px 50px rgba(0,0,0,.06); }
+  .gate-card .tag{ font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+  .gate-card h1{ font-size:24px; margin:8px 0 4px; }
+  .gate-card p{ margin:0 0 22px; color:var(--muted); font-size:15px; }
+  .gate-card input{ width:100%; font-size:17px; font-family:inherit; padding:15px 16px; border:1px solid var(--line); border-radius:12px; margin-bottom:14px; }
+  .gate-card input:focus{ outline:none; border-color:var(--ink); }
+  .gate-card button{ width:100%; font-family:inherit; font-size:16px; font-weight:600; color:#fff; background:var(--accent); border:none; border-radius:12px; padding:15px; cursor:pointer; transition:opacity .2s; }
+  .gate-card button:hover{ opacity:.88; }
+  .gate-err{ color:#c0392b; font-size:14px; margin:-4px 0 12px; min-height:18px; }
+
+  /* ----- painel ----- */
+  .wrap{ display:none; padding:22px clamp(14px,3vw,34px) 60px; }
+  .topbar{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .topbar h1{ font-size:clamp(20px,3vw,26px); margin:0; }
+  .count{ background:var(--ink); color:#fff; font-size:13px; font-weight:600; padding:4px 11px; border-radius:999px; }
+  .spacer{ flex:1; }
+  .btn{ font-family:inherit; font-size:14px; font-weight:600; padding:10px 15px; border-radius:10px; border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; transition:background .15s; }
+  .btn:hover{ background:#efefec; }
+  .btn.dark{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .btn.dark:hover{ opacity:.88; background:var(--ink); }
+
+  .table-scroll{ overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 34px rgba(0,0,0,.05); }
+  table{ border-collapse:collapse; width:100%; font-size:14px; }
+  thead th{ position:sticky; top:0; background:#faf9f7; text-align:left; font-weight:700; font-size:12px; letter-spacing:.03em; text-transform:uppercase; color:var(--muted); padding:13px 14px; border-bottom:1px solid var(--line); white-space:nowrap; z-index:2; }
+  tbody td{ padding:12px 14px; border-bottom:1px solid rgba(10,10,10,.06); vertical-align:top; }
+  tbody tr:nth-child(even){ background:#fbfbfa; }
+  tbody tr:hover{ background:#f3f6ff; }
+  td.idx{ color:var(--muted); font-variant-numeric:tabular-nums; }
+  td.dt{ white-space:nowrap; color:var(--muted); font-variant-numeric:tabular-nums; }
+  td.nome{ font-weight:600; white-space:nowrap; }
+  td.wide{ min-width:230px; max-width:340px; white-space:pre-wrap; word-break:break-word; }
+  td.nowrap{ white-space:nowrap; }
+  .empty{ padding:50px; text-align:center; color:var(--muted); }
+  .foot{ margin-top:14px; font-size:13px; color:var(--muted); }
+  .logout{ background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; text-decoration:underline; font-family:inherit; }
+</style>
+</head>
+<body>
+
+<!-- Tela de senha -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="tag">Form Mesa</div>
+    <h1>Respostas</h1>
+    <p>Área restrita. Digite a senha para ver os diagnósticos recebidos.</p>
+    <input type="password" id="pwd" placeholder="Senha" autocomplete="current-password">
+    <div class="gate-err" id="gateErr"></div>
+    <button id="enter">Entrar</button>
+  </div>
+</div>
+
+<!-- Painel de respostas -->
+<div class="wrap" id="wrap">
+  <div class="topbar">
+    <h1>Respostas do Form Mesa</h1>
+    <span class="count" id="count">0</span>
+    <div class="spacer"></div>
+    <button class="btn" id="refresh">↻ Atualizar</button>
+    <button class="btn dark" id="csv">⬇ Baixar CSV</button>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Data / Hora</th><th>Nome</th><th>E-mail</th><th>Telefone</th>
+          <th>Instagram</th><th>Área</th><th>Dificuldade</th><th>Espera da aula</th>
+          <th>"Valeu a pena"</th><th>Problema</th><th>Faturamento</th><th>Comparecer</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="foot">
+    <button class="logout" id="logout">Sair</button>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL  = 'https://alsbxdanlyqxwxlksokj.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsc2J4ZGFubHlxeHd4bGtzb2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMjA5ODYsImV4cCI6MjA5ODc5Njk4Nn0.jBP-LIlWlBx1_OXyQIKbYomWHamnL7oK0F2aD1IlSOo';
+const LS_KEY = 'respostasform_pwd';
+
+const $ = s => document.querySelector(s);
+let dados = [];
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+function fmtData(iso){
+  try{
+    return new Date(iso).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }catch(e){ return iso; }
+}
+
+async function carregar(senha){
+  const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/get_respostas', {
+    method:'POST',
+    headers:{ 'apikey':SUPABASE_ANON, 'Authorization':'Bearer '+SUPABASE_ANON, 'Content-Type':'application/json' },
+    body: JSON.stringify({ senha })
+  });
+  if(!r.ok){
+    const t = await r.text();
+    throw new Error(r.status === 400 || /incorreta/i.test(t) ? 'senha' : 'Erro ao carregar (' + r.status + ')');
+  }
+  return await r.json();
+}
+
+function render(){
+  $('#count').textContent = dados.length + (dados.length === 1 ? ' resposta' : ' respostas');
+  const tb = $('#rows');
+  if(!dados.length){
+    tb.innerHTML = '<tr><td colspan="13" class="empty">Nenhuma resposta ainda. Assim que alguém preencher o formulário, aparece aqui.</td></tr>';
+    return;
+  }
+  tb.innerHTML = dados.map((d,i)=>`
+    <tr>
+      <td class="idx">${dados.length - i}</td>
+      <td class="dt">${esc(fmtData(d.created_at))}</td>
+      <td class="nome">${esc(d.nome)}</td>
+      <td class="nowrap">${esc(d.email)}</td>
+      <td class="nowrap">${esc(d.telefone)}</td>
+      <td class="nowrap">${d.instagram ? '@'+esc(d.instagram) : ''}</td>
+      <td class="nowrap">${esc(d.area)}</td>
+      <td class="wide">${esc(d.dificuldade)}</td>
+      <td class="wide">${esc(d.espera_aula)}</td>
+      <td class="wide">${esc(d.valeu)}</td>
+      <td class="wide">${esc(d.problema)}</td>
+      <td class="nowrap">${esc(d.faturamento)}</td>
+      <td class="nowrap">${esc(d.comparecer)}</td>
+    </tr>`).join('');
+}
+
+function baixarCSV(){
+  const cols = ['created_at','nome','email','telefone','instagram','area','dificuldade','espera_aula','valeu','problema','faturamento','comparecer'];
+  const cab = ['Data/Hora','Nome','E-mail','Telefone','Instagram','Área','Dificuldade','Espera da aula','Valeu a pena','Problema','Faturamento','Comparecer'];
+  const cell = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const linhas = [cab.map(cell).join(',')];
+  dados.forEach(d=> linhas.push(cols.map(c=> cell(c==='created_at' ? fmtData(d[c]) : d[c])).join(',')) );
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'respostas-form-mesa.csv';
+  a.click();
+}
+
+async function entrar(senha, salvar){
+  try{
+    dados = await carregar(senha);
+    if(salvar) localStorage.setItem(LS_KEY, senha);
+    window._senha = senha;
+    $('#gate').style.display = 'none';
+    $('#wrap').style.display = 'block';
+    render();
+  }catch(e){
+    if(e.message === 'senha'){
+      localStorage.removeItem(LS_KEY);
+      $('#gateErr').textContent = 'Senha incorreta.';
+      $('#gate').style.display = 'flex';
+      $('#wrap').style.display = 'none';
+    }else{
+      $('#gateErr').textContent = e.message;
+    }
+  }
+}
+
+$('#enter').onclick = ()=>{ const p = $('#pwd').value.trim(); if(p) entrar(p, true); };
+$('#pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#enter').click(); });
+$('#refresh').onclick = async ()=>{ try{ dados = await carregar(window._senha); render(); }catch(e){ alert('Erro ao atualizar.'); } };
+$('#csv').onclick = baixarCSV;
+$('#logout').onclick = ()=>{ localStorage.removeItem(LS_KEY); location.reload(); };
+
+// Auto-login se a senha ja foi salva neste dispositivo
+const saved = localStorage.getItem(LS_KEY);
+if(saved) entrar(saved, false); else $('#pwd').focus();
+</script>
+</body>
+</html>
